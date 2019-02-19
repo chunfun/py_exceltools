@@ -30,7 +30,7 @@ OFLG_ROW = 3  # flag    row    server client所在行
 SRV_FLAG = "server"
 CLT_FLAG = "client"
 
-SHEET_FLAG_ROW = 1
+SHEET_FLAG_ROW = 3
 SHEET_FLAG_COL = 1
 
 ARRAY_FLAG  = "array"
@@ -146,9 +146,10 @@ class Sheet(object):
             print( "    decode sheet %s nothing to decode,abort" \
             % wb_sheet.title.ljust(24,".") )
             return False
-
-        self.decode_field( self.srv_fields,ASRV_ROW )
-        self.decode_field( self.clt_fields,ACLT_ROW )
+        
+        print("sheet types len %d ..." % len( self.types ))
+        self.decode_field(self.srv_fields,ASRV_ROW )
+        self.decode_field(self.clt_fields,ACLT_ROW )
 
         self.decode_ctx()
 
@@ -264,21 +265,27 @@ class ObjectSheet(Sheet):
 
     # 解析各字段的类型
     def decode_type(self):
-        for row_idx in range( OFLG_ROW + 1,self.wb_sheet.max_row + 1 ):
+        for row_idx in range( OFLG_ROW + 1, self.wb_sheet.max_row + 1 ):
             self.mark_error_pos( row_idx,OTPE_COL)
             value = self.wb_sheet.cell( row = row_idx, column = OTPE_COL ).value
-
+            
             # 类型必须连续，遇到空则认为后续数据不再导出
             if value == None: break
             if value not in TYPES : self.raise_error( "invalid type",value )
 
+            print("object type %s ..." % value)
             self.types.append( value )
 
     # 导出客户端、服务端字段名(server、client)那一列
     def decode_field(self,fields,col_idx):
-        for row_idx in range( OFLG_ROW + 1,len( self.types ) + 2 ):
-            value = self.wb_sheet.cell( row = row_idx, column = col_idx ).value
+        print("object type len %d ..." % len( self.types ))
+        for row_idx in range( OFLG_ROW + 1, OFLG_ROW + 1 + len( self.types )):
+            if col_idx == ASRV_ROW :
+                value = self.wb_sheet.cell( row = row_idx, column = OSRV_COL ).value
+            elif col_idx == ACLT_ROW :
+                value = self.wb_sheet.cell( row = row_idx, column = OCLT_COL ).value
 
+            print("object field %s ..." % value)
             # 对于不需要导出的field，可以为空。即value为None
             fields.append( value )
 
@@ -286,19 +293,21 @@ class ObjectSheet(Sheet):
     def decode_cell(self,row_idx):
         value = self.wb_sheet.cell( row = row_idx, column = OCTX_COL ).value
         if None == value : return None
-
+        print("decode_cell row_idx %d ..." % row_idx)
+        print("decode_cell object value %s ..." % value)
         # 在object的结构中，数据是从第二行开始的，所以types的下标偏移2
-        self.mark_error_pos( row_idx,OCTX_COL )
-        return self.to_value( self.types[row_idx - 2],value )
+        self.mark_error_pos( row_idx, OCTX_COL)
+        return self.to_value( self.types[row_idx - 4], value)
 
     def decode_ctx(self):
         # 第一行为flag行，包括最后一行，所以要types + 2
-        for row_idx in range( OFLG_ROW + 1,len( self.types ) + 2 ):
+        for row_idx in range( OFLG_ROW + 1, OFLG_ROW + 1 + len( self.types )):
             value = self.decode_cell( row_idx )
-            if None == value : continue
 
-            srv_key = self.srv_fields[row_idx - 2]
-            clt_key = self.clt_fields[row_idx - 2]
+            if None == value : continue
+            
+            srv_key = self.srv_fields[row_idx - 4]
+            clt_key = self.clt_fields[row_idx - 4]
 
             if srv_key : self.srv_ctx[srv_key] = value
             if clt_key : self.clt_ctx[clt_key] = value
@@ -313,8 +322,8 @@ class ExcelDoc:
     # 返回解析的对象类型
     def need_decode(self,wb_sheet):
         sheet_val = wb_sheet.cell(
-            row = SHEET_FLAG_ROW, column = SHEET_FLAG_ROW ).value
-
+            row = SHEET_FLAG_ROW, column = SHEET_FLAG_COL ).value
+        print("sheet_val %s ..." % sheet_val)
         sheeter = None
         srv_value = None
         clt_value = None
